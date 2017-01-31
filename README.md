@@ -1,0 +1,2 @@
+# kmer-counter
+Count kmers
