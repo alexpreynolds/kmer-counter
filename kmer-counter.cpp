@@ -25,18 +25,18 @@ kmer_counter::KmerCounter::parse_input(void)
     char start_str[LINE_MAX];
     char stop_str[LINE_MAX];
     char id_str[LINE_MAX];
-    uint64_t start_val = 0;
-    uint64_t stop_val = 0;
+    char kv_pair[LINE_MAX];
+    std::string kv_pairs;
     emilib::HashMap<std::string, int> mer_counts;
+    emilib::HashMap<std::string, int> mer_keys;
     std::string n("N");
     
     while ((buf_read = getline(&buf, &buf_len, this->get_in_stream())) != EOF) {
         std::sscanf(buf, "%s\t%s\t%s\t%s\n", chr_str, start_str, stop_str, id_str);
-        std::sscanf(start_str, "%" SCNu64, &start_val);
-        std::sscanf(stop_str, "%" SCNu64, &stop_val);
         std::string seq(id_str);
         std::transform(seq.begin(), seq.end(), seq.begin(), ::toupper);
         std::deque<char> window(seq.begin(), seq.begin() + this->get_k());
+        // walk over all windows across sequence
         for (size_t i = this->get_k(); i <= seq.length(); ++i) {
             std::string mer_f(window.begin(), window.end());
             window.pop_front();
@@ -47,20 +47,47 @@ kmer_counter::KmerCounter::parse_input(void)
             }
             std::string mer_r(mer_f);
             reverse_complement_string(mer_r);
-            if ((!mer_counts[mer_f]) || (!mer_counts[mer_r])) {
+            if ((mer_counts.count(mer_f) == 0) && (mer_counts.count(mer_r) == 0)) {
                 mer_counts[mer_f] = 1;
+                mer_keys[mer_f] = this->get_offset();
+                fprintf(stdout, "setting [%s] to [%d]\n", mer_f.c_str(), this->get_offset());
+                this->increment_offset();
+                // we don't want to add a palindrome twice
+                if (mer_f.compare(mer_r) == 0) {
+                    continue;
+                }
                 mer_counts[mer_r] = 1;
+                mer_keys[mer_r] = this->get_offset();
+                this->increment_offset();
             }
-            else if ((mer_counts[mer_f]) || (mer_counts[mer_r])) {
+            else if ((mer_counts.count(mer_f) == 1) || (mer_counts.count(mer_r) == 1)) {
                 mer_counts[mer_f]++;
                 mer_counts[mer_r]++;
             }
         }
+        // write out all the hits
+        kv_pairs.clear();
         for (auto iter = mer_counts.begin(); iter != mer_counts.end(); ++iter) {
-            std::fprintf(stdout, "[%s:%d]\n", iter->first.c_str(), iter->second);
+            if (iter->second != 0) {
+                std::sprintf(kv_pair, "%d:%d ", mer_keys[iter->first], iter->second);
+                mer_counts[iter->first] = 0;
+                kv_pairs.append(kv_pair);
+            }
         }
+        if (kv_pairs.length() > 0) {
+            kv_pairs.pop_back();
+        }
+        std::fprintf(stdout, "%s\t%s\t%s\t%s\n", chr_str, start_str, stop_str, kv_pairs.c_str());
     }
-    
+
+    /*
+    // write out the mer-to-offset map
+    for (auto iter = mer_keys.begin(); iter != mer_keys.end(); ++iter) {
+        std::fprintf(stdout, "%s\t%d\n", iter->first.c_str(), iter->second);
+    }
+    */
+
+    // cleanup
     free(buf);
 }
 

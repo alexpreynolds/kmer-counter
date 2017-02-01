@@ -67,7 +67,8 @@ namespace kmer_counter
         void set_k(int k);
         int get_offset(void);
         void set_offset(int o);
-
+        void increment_offset(void);
+        
         static void reverse_complement_string(std::string &s) {
             std::reverse(s.begin(), s.end());
             for (auto i = s.begin(); i != s.end(); ++i) {
@@ -97,6 +98,7 @@ namespace kmer_counter
     
     int KmerCounter::get_offset(void) { return _offset; }
     void KmerCounter::set_offset(int o) { _offset = o; }
+    void KmerCounter::increment_offset(void) { ++_offset; }
 
     FILE* KmerCounter::get_in_stream(void) { return _in_stream; }
     FILE** KmerCounter::get_in_stream_ptr(void) { return &_in_stream; }    
