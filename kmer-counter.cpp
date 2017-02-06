@@ -10,13 +10,13 @@ main(int argc, char** argv)
     kmer_counter::KmerCounter kc;
 
     kc.initialize_command_line_options(argc, argv);
-    kc.parse_input();
+    kc.parse_input_with_emilib_hm();
     
     return EXIT_SUCCESS;
 }
 
 void
-kmer_counter::KmerCounter::parse_input(void)
+kmer_counter::KmerCounter::parse_input_with_emilib_hm(void)
 {
     char* buf = NULL;
     size_t buf_len = 0;
@@ -26,18 +26,18 @@ kmer_counter::KmerCounter::parse_input(void)
     char stop_str[LINE_MAX];
     char id_str[LINE_MAX];
     char kv_pair[LINE_MAX];
-    std::string kv_pairs;
+    std::string kv_pairs("");
     emilib::HashMap<std::string, int> mer_counts;
     emilib::HashMap<std::string, int> mer_keys;
     std::string n("N");
-    
-    while ((buf_read = getline(&buf, &buf_len, this->get_in_stream())) != EOF) {
+
+    while ((buf_read = getline(&buf, &buf_len, this->in_stream())) != EOF) {
         std::sscanf(buf, "%s\t%s\t%s\t%s\n", chr_str, start_str, stop_str, id_str);
         std::string seq(id_str);
         std::transform(seq.begin(), seq.end(), seq.begin(), ::toupper);
-        std::deque<char> window(seq.begin(), seq.begin() + this->get_k());
+        std::deque<char> window(seq.begin(), seq.begin() + this->k());
         // walk over all windows across sequence
-        for (size_t i = this->get_k(); i <= seq.length(); ++i) {
+        for (size_t i = this->k(); i <= seq.length(); ++i) {
             std::string mer_f(window.begin(), window.end());
             window.pop_front();
             window.push_back(seq[i]);
@@ -49,15 +49,14 @@ kmer_counter::KmerCounter::parse_input(void)
             reverse_complement_string(mer_r);
             if ((mer_counts.count(mer_f) == 0) && (mer_counts.count(mer_r) == 0)) {
                 mer_counts[mer_f] = 1;
-                mer_keys[mer_f] = this->get_offset();
-                fprintf(stdout, "setting [%s] to [%d]\n", mer_f.c_str(), this->get_offset());
+                mer_keys[mer_f] = this->offset();
                 this->increment_offset();
                 // we don't want to add a palindrome twice
                 if (mer_f.compare(mer_r) == 0) {
                     continue;
                 }
                 mer_counts[mer_r] = 1;
-                mer_keys[mer_r] = this->get_offset();
+                mer_keys[mer_r] = this->offset();
                 this->increment_offset();
             }
             else if ((mer_counts.count(mer_f) == 1) || (mer_counts.count(mer_r) == 1)) {
@@ -77,38 +76,38 @@ kmer_counter::KmerCounter::parse_input(void)
         if (kv_pairs.length() > 0) {
             kv_pairs.pop_back();
         }
-        std::fprintf(stdout, "%s\t%s\t%s\t%s\n", chr_str, start_str, stop_str, kv_pairs.c_str());
+        std::fprintf(this->results_kmer_count_stream(), "%s\t%s\t%s\t%s\n", chr_str, start_str, stop_str, kv_pairs.c_str());
     }
 
-    /*
     // write out the mer-to-offset map
     for (auto iter = mer_keys.begin(); iter != mer_keys.end(); ++iter) {
-        std::fprintf(stdout, "%s\t%d\n", iter->first.c_str(), iter->second);
+        std::fprintf(this->results_kmer_map_stream(), "%s\t%d\n", iter->first.c_str(), iter->second);
     }
-    */
 
     // cleanup
     free(buf);
 }
 
 std::string
-kmer_counter::KmerCounter::get_client_kmer_counter_opt_string(void)
+kmer_counter::KmerCounter::client_kmer_counter_opt_string(void)
 {
-    static std::string _s("k:o:hv?");
+    static std::string _s("k:o:r:hv?");
     return _s;
 }
 
 struct option*
-kmer_counter::KmerCounter::get_client_kmer_counter_long_options(void)
+kmer_counter::KmerCounter::client_kmer_counter_long_options(void)
 {
     static struct option _k = { "k",              required_argument,   NULL,    'k' };
     static struct option _o = { "offset",         required_argument,   NULL,    'o' };
+    static struct option _r = { "results-dir",    required_argument,   NULL,    'r' };    
     static struct option _h = { "help",           no_argument,         NULL,    'h' };
     static struct option _v = { "version",        no_argument,         NULL,    'v' };
     static struct option _0 = { NULL,             no_argument,         NULL,     0  };
     static std::vector<struct option> _s;
     _s.push_back(_k);
     _s.push_back(_o);
+    _s.push_back(_r);
     _s.push_back(_h);
     _s.push_back(_v);
     _s.push_back(_0);
@@ -121,23 +120,26 @@ kmer_counter::KmerCounter::initialize_command_line_options(int argc, char** argv
     int client_long_index;
     int client_opt = getopt_long(argc,
                                  argv,
-                                 this->get_client_kmer_counter_opt_string().c_str(),
-                                 this->get_client_kmer_counter_long_options(),
+                                 this->client_kmer_counter_opt_string().c_str(),
+                                 this->client_kmer_counter_long_options(),
                                  &client_long_index);
-    int k = -1;
-    int offset = -1;
+    int _k = -1;
+    int _offset = -1;
 
     opterr = 0; /* disable error reporting by GNU getopt */
     
     while (client_opt != -1) {
         switch (client_opt) {
         case 'k':
-            std::sscanf(optarg, "%d", &k);
-            this->set_k(k);
+            std::sscanf(optarg, "%d", &_k);
+            this->k(_k);
             break;
         case 'o':
-            std::sscanf(optarg, "%d", &offset);
-            this->set_offset(offset);
+            std::sscanf(optarg, "%d", &_offset);
+            this->offset(_offset);
+            break;
+        case 'r':
+            this->results_dir(optarg);
             break;
         case 'h':
             this->print_usage(stdout);
@@ -153,15 +155,15 @@ kmer_counter::KmerCounter::initialize_command_line_options(int argc, char** argv
         }
         client_opt = getopt_long(argc,
                                  argv,
-                                 this->get_client_kmer_counter_opt_string().c_str(),
-                                 this->get_client_kmer_counter_long_options(),
+                                 this->client_kmer_counter_opt_string().c_str(),
+                                 this->client_kmer_counter_long_options(),
                                  &client_long_index);
     }
     
     if (optind < argc) {
         do {
-            if (this->get_input_fn().empty()) {
-                this->set_input_fn(argv[optind]);
+            if (this->input_fn().empty()) {
+                this->input_fn(argv[optind]);
                 this->initialize_in_stream();
             }
             else {
@@ -171,42 +173,60 @@ kmer_counter::KmerCounter::initialize_command_line_options(int argc, char** argv
         while (++optind < argc);
     }
 
-    if (this->get_k() == -1) {
+    if (this->k() == -1) {
         std::fprintf(stderr, "Error: Specify k value\n");
         this->print_usage(stderr);
         std::exit(ENODATA);
     }
 
-    if (this->get_offset() == -1) {
+    if (this->offset() == -1) {
         std::fprintf(stderr, "Error: Specify offset value\n");
         this->print_usage(stderr);
         std::exit(ENODATA);
     }
+
+    if (this->results_dir().empty()) {
+        std::fprintf(stderr, "Error: Specify results dir value\n");
+        this->print_usage(stderr);
+        std::exit(ENODATA);        
+    }
+    else {
+        this->results_dir_mode(0755);
+        if (this->initialize_result_dir(this->results_dir(), this->results_dir_mode())) {
+            this->initialize_kmer_count_stream();
+            this->initialize_kmer_map_stream();
+        }
+        else {
+            std::fprintf(stderr, "Error: Could not create specified path [%s] with specified mode [%o]\n", this->results_dir().c_str(), this->results_dir_mode());
+            this->print_usage(stderr);
+            std::exit(EINVAL);
+        }
+    }
 }
 
 std::string
-kmer_counter::KmerCounter::get_client_kmer_counter_name(void)
+kmer_counter::KmerCounter::client_kmer_counter_name(void)
 {
     static std::string _s(kmer_counter::KmerCounter::client_name);
     return _s;
 }
 
 std::string
-kmer_counter::KmerCounter::get_client_kmer_counter_version(void)
+kmer_counter::KmerCounter::client_kmer_counter_version(void)
 {
     static std::string _s(kmer_counter::KmerCounter::client_version);
     return _s;
 }
 
 std::string
-kmer_counter::KmerCounter::get_client_kmer_counter_authors(void)
+kmer_counter::KmerCounter::client_kmer_counter_authors(void)
 {
     static std::string _s(kmer_counter::KmerCounter::client_authors);
     return _s;
 }
 
 std::string
-kmer_counter::KmerCounter::get_client_kmer_counter_usage(void)
+kmer_counter::KmerCounter::client_kmer_counter_usage(void)
 {
     static std::string _s("\n"                                          \
                           "  Usage:\n"                                  \
@@ -216,7 +236,7 @@ kmer_counter::KmerCounter::get_client_kmer_counter_usage(void)
 }
 
 std::string
-kmer_counter::KmerCounter::get_client_kmer_counter_description(void)
+kmer_counter::KmerCounter::client_kmer_counter_description(void)
 {
     static std::string _s("  Count kmers in BED file and report counts for\n" \
                           "  each element, from specified offset. Write a\n" \
@@ -225,16 +245,17 @@ kmer_counter::KmerCounter::get_client_kmer_counter_description(void)
 }
 
 std::string
-kmer_counter::KmerCounter::get_client_kmer_counter_io_options(void)
+kmer_counter::KmerCounter::client_kmer_counter_io_options(void)
 {
     static std::string _s("  General Options:\n\n"              \
-                          "  --k=n        K-value for kmer length (integer)\n" \
-                          "  --offset=n   Offset (integer)\n");
+                          "  --k=n            K-value for kmer length (integer)\n" \
+                          "  --offset=n       Offset (integer)\n" \
+                          "  --results-dir=s  Results directory (string)\n");
     return _s;
 }
 
 std::string
-kmer_counter::KmerCounter::get_client_kmer_counter_general_options(void)
+kmer_counter::KmerCounter::client_kmer_counter_general_options(void)
 {
     static std::string _s("  Process Flags:\n\n"                        \
                           "  --help                  Show this usage message\n" \
@@ -253,13 +274,13 @@ kmer_counter::KmerCounter::print_usage(FILE* wo_stream)
                  "%s\n"                                              \
                  "%s\n"                                              \
                  "%s\n",
-                 this->get_client_kmer_counter_name().c_str(),
-                 this->get_client_kmer_counter_version().c_str(),
-                 this->get_client_kmer_counter_authors().c_str(),
-                 this->get_client_kmer_counter_usage().c_str(),
-                 this->get_client_kmer_counter_description().c_str(),
-                 this->get_client_kmer_counter_io_options().c_str(),
-                 this->get_client_kmer_counter_general_options().c_str());
+                 this->client_kmer_counter_name().c_str(),
+                 this->client_kmer_counter_version().c_str(),
+                 this->client_kmer_counter_authors().c_str(),
+                 this->client_kmer_counter_usage().c_str(),
+                 this->client_kmer_counter_description().c_str(),
+                 this->client_kmer_counter_io_options().c_str(),
+                 this->client_kmer_counter_general_options().c_str());
 }
 
 void
@@ -269,7 +290,7 @@ kmer_counter::KmerCounter::print_version(FILE* wo_stream)
                  "%s\n"                                              \
                  "  version: %s\n"                                   \
                  "  author:  %s\n",
-                 this->get_client_kmer_counter_name().c_str(),
-                 this->get_client_kmer_counter_version().c_str(),
-                 this->get_client_kmer_counter_authors().c_str());
+                 this->client_kmer_counter_name().c_str(),
+                 this->client_kmer_counter_version().c_str(),
+                 this->client_kmer_counter_authors().c_str());
 }
