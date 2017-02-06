@@ -19,8 +19,16 @@ Usage
 Provide a four-column BED file with the interval's genomic sequence in the fourth column (*i.e.*, ID field).
 
 ```
-$ ./kmer-counter --k=6 --offset=12195 --results-dir="foo" foo.bed4
+$ ./kmer-counter --k=6 --offset=12195 --results-dir="6mers" intervals.bed4
 ```
+
+The above example generates 6-mers of sequences in the file `intervals.bed4`.
+
+The results are stored in a folder called `6mers`, which contains two files `count.bed` and `map.txt`.
+
+The first file `count.bed` contains a BED file of intervals from `intervals.bed4`, where the fourth column contains a space-delimited pair of "mer"-keys and the number of times that key is seen. Mer-keys are numbers which begin at the `offset` value provided on the command-line.
+
+The second file `map.txt` contains a tab-delimited pairing of mers and their mer-key, as found in `count.bed`.
 
 Notes
 -----
