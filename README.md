@@ -19,7 +19,7 @@ Usage
 Provide a four-column BED file with the interval's genomic sequence in the fourth column (*i.e.*, ID field).
 
 ```
-$ ./kmer-counter --k=6 --offset=12195 foo.bed4
+$ ./kmer-counter --k=6 --offset=12195 --results-dir="foo" foo.bed4
 ```
 
 Notes
