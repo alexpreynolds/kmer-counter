@@ -11,12 +11,12 @@ $ module add glibc
 $ make
 ```
 
-In theory, this should compile okay under OS X, but that has not yet been tested.
+This does not yet compile under OS X `clang++`, but has been tested against `gcc` 5.3.0 under Centos 7.2. 
 
 Usage
 -----
 
-Provide a four-column BED file with the interval's genomic sequence in the fourth column (*i.e.*, ID field).
+You provide a four-column BED file with the interval's genomic sequence in the fourth column (*i.e.*, ID field), along with the number *k* for the k-mers you want to count, an *offset* value for mer-keys (explained below), and a *results directory* to write results, *e.g.*:
 
 ```
 $ ./kmer-counter --k=6 --offset=12195 --results-dir="6mers" intervals.bed4
