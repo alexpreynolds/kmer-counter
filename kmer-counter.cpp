@@ -12,9 +12,18 @@ main(int argc, char** argv)
     kc.initialize_command_line_options(argc, argv);
     kc.initialize_kmer_map();
     kc.print_kmer_map(kc.results_kmer_map_stream());
-    kc.parse_input_with_emilib_hm();
+    kc.parse_input_to_counts();
+    kc.close_output_streams();
     
     return EXIT_SUCCESS;
+}
+
+void
+kmer_counter::KmerCounter::close_output_streams(void)
+{
+    this->close_in_stream();
+    this->close_kmer_count_stream();
+    this->close_kmer_map_stream();
 }
 
 void
@@ -30,7 +39,7 @@ kmer_counter::KmerCounter::initialize_kmer_map(void)
     for (x = 0; x < 1ULL<<(2*k); ++x) {
         for (i = 0, y = x; i < k; ++i, y >>= 2)
             mer.push_back("ACGT"[y & 3]);
-        this->add_mer_key(mer, this->offset(true));
+        this->set_mer_key(mer, this->offset(true));
         mer.clear();
     }
 }
@@ -45,7 +54,7 @@ kmer_counter::KmerCounter::print_kmer_map(FILE* os)
 }
 
 void
-kmer_counter::KmerCounter::parse_input_with_emilib_hm(void)
+kmer_counter::KmerCounter::parse_input_to_counts(void)
 {
     char* buf = NULL;
     size_t buf_len = 0;
@@ -54,9 +63,6 @@ kmer_counter::KmerCounter::parse_input_with_emilib_hm(void)
     char start_str[LINE_MAX];
     char stop_str[LINE_MAX];
     char id_str[LINE_MAX];
-    char kv_pair[LINE_MAX];
-    std::string kv_pairs("");
-    emilib::HashMap<std::string, int> mer_counts;
     std::string n("N");
 
     while ((buf_read = getline(&buf, &buf_len, this->in_stream())) != EOF) {
@@ -75,36 +81,45 @@ kmer_counter::KmerCounter::parse_input_with_emilib_hm(void)
             }
             std::string mer_r(mer_f);
             reverse_complement_string(mer_r);
-            if ((mer_counts.count(mer_f) == 0) && (mer_counts.count(mer_r) == 0)) {
-                mer_counts[mer_f] = 1;
+            if ((mer_count(mer_f) == 0) && (mer_count(mer_r) == 0)) {
+                set_mer_count(mer_f, 1);
                 // we don't want to add a palindrome twice
                 if (mer_f.compare(mer_r) == 0) {
                     continue;
                 }
-                mer_counts[mer_r] = 1;
+                set_mer_count(mer_r, 1);
             }
-            else if ((mer_counts.count(mer_f) == 1) || (mer_counts.count(mer_r) == 1)) {
-                mer_counts[mer_f]++;
-                mer_counts[mer_r]++;
-            }
-        }
-        // write out all the hits
-        kv_pairs.clear();
-        for (auto iter = mer_counts.begin(); iter != mer_counts.end(); ++iter) {
-            if (iter->second != 0) {
-                std::sprintf(kv_pair, "%d:%d ", this->mer_key(iter->first), iter->second);
-                mer_counts[iter->first] = 0;
-                kv_pairs.append(kv_pair);
+            else if ((mer_count(mer_f) == 1) || (mer_count(mer_r) == 1)) {
+                increment_mer_count(mer_f);
+                increment_mer_count(mer_r);
             }
         }
-        if (kv_pairs.length() > 0) {
-            kv_pairs.pop_back();
-        }
-        std::fprintf(this->results_kmer_count_stream(), "%s\t%s\t%s\t%s\n", chr_str, start_str, stop_str, kv_pairs.c_str());
+        this->print_kmer_count(this->results_kmer_count_stream(), chr_str, start_str, stop_str);
     }
 
     // cleanup
     free(buf);
+}
+
+void
+kmer_counter::KmerCounter::print_kmer_count(FILE* os, char chr[], char start[], char stop[])
+{
+    char kv_pair[LINE_MAX];
+    std::string kv_pairs;
+
+    // write the hits
+    kv_pairs.clear();
+    for (auto iter = this->mer_counts().begin(); iter != this->mer_counts().end(); ++iter) {
+        if (iter->second != 0) {
+            std::sprintf(kv_pair, "%d:%d ", this->mer_key(iter->first), iter->second);
+            set_mer_count(iter->first, 0);
+            kv_pairs.append(kv_pair);
+        }
+    }
+    if (kv_pairs.length() > 0) {
+        kv_pairs.pop_back();
+    }
+    std::fprintf(os, "%s\t%s\t%s\t%s\n", chr, start, stop, kv_pairs.c_str());    
 }
 
 std::string

@@ -46,12 +46,16 @@ namespace kmer_counter
         FILE* _results_kmer_map_stream;
         mode_t _results_dir_mode;
         emilib::HashMap<std::string, int> _mer_keys;
+        emilib::HashMap<std::string, int> _mer_counts;        
         
     public:
-        void parse_input_with_emilib_hm(void);
+        void parse_input_to_counts(void);
         void initialize_command_line_options(int argc, char** argv);
         void initialize_kmer_map(void);
-        void print_kmer_map(FILE* wo_string);
+        void print_kmer_map(FILE* wo_stream);
+        void print_kmer_count(FILE* wo_stream, char chr[], char start[], char stop[]);
+        void close_output_streams(void);
+        // --
         static const std::string client_name;
         static const std::string client_version;
         static const std::string client_authors;
@@ -80,7 +84,9 @@ namespace kmer_counter
         void results_dir_mode(const mode_t& m);
         bool initialize_result_dir(const std::string& s, const mode_t m);
         void initialize_kmer_count_stream(void);
+        void close_kmer_count_stream(void);
         void initialize_kmer_map_stream(void);
+        void close_kmer_map_stream(void);
         FILE* in_stream(void);
         void in_stream(FILE** ri_stream_ptr);
         void initialize_in_stream(void);
@@ -93,9 +99,14 @@ namespace kmer_counter
         int offset(const bool& increment);
         void offset(const int& o);
         void increment_offset(void);
+        const emilib::HashMap<std::string, int>& mer_counts(void);
+        void mer_counts(const emilib::HashMap<std::string, int>& mc);
+        auto mer_count(const std::string& k);
+        void set_mer_count(const std::string& k, const int& v);
+        void increment_mer_count(const std::string& k);        
         const emilib::HashMap<std::string, int>& mer_keys(void);
-        void mer_keys(const emilib::HashMap<std::string, int>& m);
-        void add_mer_key(const std::string& k, const int& v);
+        void mer_keys(const emilib::HashMap<std::string, int>& mk);
+        void set_mer_key(const std::string& k, const int& v);
         auto mer_key(const std::string& k);
         
         static void reverse_complement_string(std::string &s) {
@@ -172,15 +183,20 @@ namespace kmer_counter
             
             return status;
         }
-        
 
         KmerCounter();
         ~KmerCounter();
     };
 
+    const emilib::HashMap<std::string, int>& KmerCounter::mer_counts(void) { return _mer_counts; }
+    auto KmerCounter::mer_count(const std::string& k) { return _mer_counts.count(k); }
+    void KmerCounter::mer_counts(const emilib::HashMap<std::string, int>& mc) { _mer_counts = mc; }
+    void KmerCounter::set_mer_count(const std::string& k, const int& v) { _mer_counts[k] = v; }
+    void KmerCounter::increment_mer_count(const std::string& k) { _mer_counts[k]++; }
+
     const emilib::HashMap<std::string, int>& KmerCounter::mer_keys(void) { return _mer_keys; }
-    void KmerCounter::mer_keys(const emilib::HashMap<std::string, int>& m) { _mer_keys = m; }
-    void KmerCounter::add_mer_key(const std::string& k, const int& v) { _mer_keys[k] = v; }
+    void KmerCounter::mer_keys(const emilib::HashMap<std::string, int>& mk) { _mer_keys = mk; }
+    void KmerCounter::set_mer_key(const std::string& k, const int& v) { _mer_keys[k] = v; }
     auto KmerCounter::mer_key(const std::string& k) { return _mer_keys[k]; }
     
     const std::string& KmerCounter::results_dir(void) { return _results_dir; }
@@ -212,6 +228,7 @@ namespace kmer_counter
         }
         this->results_kmer_count_stream(&out_fp);
     }
+    void KmerCounter::close_kmer_count_stream(void) { if (_results_kmer_count_stream) { std::fclose(_results_kmer_count_stream); } }
 
     void KmerCounter::initialize_kmer_map_stream(void) {
         FILE* out_fp = NULL;
@@ -224,6 +241,7 @@ namespace kmer_counter
         }
         this->results_kmer_map_stream(&out_fp);
     }
+    void KmerCounter::close_kmer_map_stream(void) { if (_results_kmer_map_stream) { std::fclose(_results_kmer_map_stream); } }    
     
     const int& KmerCounter::k(void) { return _k; }
     void KmerCounter::k(const int& k) { _k = k; }
