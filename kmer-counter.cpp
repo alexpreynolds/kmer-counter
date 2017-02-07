@@ -10,9 +10,38 @@ main(int argc, char** argv)
     kmer_counter::KmerCounter kc;
 
     kc.initialize_command_line_options(argc, argv);
+    kc.initialize_kmer_map();
+    kc.print_kmer_map(kc.results_kmer_map_stream());
     kc.parse_input_with_emilib_hm();
     
     return EXIT_SUCCESS;
+}
+
+void
+kmer_counter::KmerCounter::initialize_kmer_map(void)
+{
+    int i = 0;
+    std::uint64_t x, y;
+    int k = this->k();
+    std::string mer;
+
+    // modified from: https://www.biostars.org/p/18096/#18107
+    mer.reserve(k);
+    for (x = 0; x < 1ULL<<(2*k); ++x) {
+        for (i = 0, y = x; i < k; ++i, y >>= 2)
+            mer.push_back("ACGT"[y & 3]);
+        this->add_mer_key(mer, this->offset(true));
+        mer.clear();
+    }
+}
+
+void
+kmer_counter::KmerCounter::print_kmer_map(FILE* os)
+{
+    auto map = this->mer_keys();
+    for (auto iter = map.begin(); iter != map.end(); ++iter) {
+        std::fprintf(os, "%s\t%d\n", iter->first.c_str(), iter->second);
+    }    
 }
 
 void
@@ -28,7 +57,6 @@ kmer_counter::KmerCounter::parse_input_with_emilib_hm(void)
     char kv_pair[LINE_MAX];
     std::string kv_pairs("");
     emilib::HashMap<std::string, int> mer_counts;
-    emilib::HashMap<std::string, int> mer_keys;
     std::string n("N");
 
     while ((buf_read = getline(&buf, &buf_len, this->in_stream())) != EOF) {
@@ -49,15 +77,11 @@ kmer_counter::KmerCounter::parse_input_with_emilib_hm(void)
             reverse_complement_string(mer_r);
             if ((mer_counts.count(mer_f) == 0) && (mer_counts.count(mer_r) == 0)) {
                 mer_counts[mer_f] = 1;
-                mer_keys[mer_f] = this->offset();
-                this->increment_offset();
                 // we don't want to add a palindrome twice
                 if (mer_f.compare(mer_r) == 0) {
                     continue;
                 }
                 mer_counts[mer_r] = 1;
-                mer_keys[mer_r] = this->offset();
-                this->increment_offset();
             }
             else if ((mer_counts.count(mer_f) == 1) || (mer_counts.count(mer_r) == 1)) {
                 mer_counts[mer_f]++;
@@ -68,7 +92,7 @@ kmer_counter::KmerCounter::parse_input_with_emilib_hm(void)
         kv_pairs.clear();
         for (auto iter = mer_counts.begin(); iter != mer_counts.end(); ++iter) {
             if (iter->second != 0) {
-                std::sprintf(kv_pair, "%d:%d ", mer_keys[iter->first], iter->second);
+                std::sprintf(kv_pair, "%d:%d ", this->mer_key(iter->first), iter->second);
                 mer_counts[iter->first] = 0;
                 kv_pairs.append(kv_pair);
             }
@@ -77,11 +101,6 @@ kmer_counter::KmerCounter::parse_input_with_emilib_hm(void)
             kv_pairs.pop_back();
         }
         std::fprintf(this->results_kmer_count_stream(), "%s\t%s\t%s\t%s\n", chr_str, start_str, stop_str, kv_pairs.c_str());
-    }
-
-    // write out the mer-to-offset map
-    for (auto iter = mer_keys.begin(); iter != mer_keys.end(); ++iter) {
-        std::fprintf(this->results_kmer_map_stream(), "%s\t%d\n", iter->first.c_str(), iter->second);
     }
 
     // cleanup

@@ -35,20 +35,23 @@ namespace kmer_counter
     {
         
     private:
-        std::string _input_fn;
-        FILE* _in_stream;
         int _k;
         int _offset;
+        std::string _input_fn;
+        FILE* _in_stream;
         std::string _results_dir;
         std::string _results_kmer_count_fn;
         FILE* _results_kmer_count_stream;
         std::string _results_kmer_map_fn;
         FILE* _results_kmer_map_stream;
         mode_t _results_dir_mode;
+        emilib::HashMap<std::string, int> _mer_keys;
         
     public:
         void parse_input_with_emilib_hm(void);
         void initialize_command_line_options(int argc, char** argv);
+        void initialize_kmer_map(void);
+        void print_kmer_map(FILE* wo_string);
         static const std::string client_name;
         static const std::string client_version;
         static const std::string client_authors;
@@ -87,8 +90,13 @@ namespace kmer_counter
         const int& k(void);
         void k(const int& k);
         const int& offset(void);
+        int offset(const bool& increment);
         void offset(const int& o);
         void increment_offset(void);
+        const emilib::HashMap<std::string, int>& mer_keys(void);
+        void mer_keys(const emilib::HashMap<std::string, int>& m);
+        void add_mer_key(const std::string& k, const int& v);
+        auto mer_key(const std::string& k);
         
         static void reverse_complement_string(std::string &s) {
             std::reverse(s.begin(), s.end());
@@ -169,6 +177,11 @@ namespace kmer_counter
         KmerCounter();
         ~KmerCounter();
     };
+
+    const emilib::HashMap<std::string, int>& KmerCounter::mer_keys(void) { return _mer_keys; }
+    void KmerCounter::mer_keys(const emilib::HashMap<std::string, int>& m) { _mer_keys = m; }
+    void KmerCounter::add_mer_key(const std::string& k, const int& v) { _mer_keys[k] = v; }
+    auto KmerCounter::mer_key(const std::string& k) { return _mer_keys[k]; }
     
     const std::string& KmerCounter::results_dir(void) { return _results_dir; }
     void KmerCounter::results_dir(const std::string& s) { _results_dir = s; }
@@ -217,6 +230,7 @@ namespace kmer_counter
     
     const int& KmerCounter::offset(void) { return _offset; }
     void KmerCounter::offset(const int& o) { _offset = o; }
+    int KmerCounter::offset(const bool& increment) { int _o = _offset; if (increment) { _offset++; } return _o; }
     void KmerCounter::increment_offset(void) { ++_offset; }
 
     FILE* KmerCounter::in_stream(void) { return _in_stream; }
