@@ -41,24 +41,35 @@ namespace kmer_counter
         FILE* _in_stream;
         std::string _results_dir;
         std::string _results_kmer_count_fn;
-        FILE* _results_kmer_count_stream;
+        FILE* _results_kmer_count_stream = NULL;
         std::string _results_kmer_map_fn;
-        FILE* _results_kmer_map_stream;
+        FILE* _results_kmer_map_stream = NULL;
         mode_t _results_dir_mode;
         emilib::HashMap<std::string, int> _mer_keys;
         emilib::HashMap<std::string, int> _mer_counts;        
         
     public:
-        void parse_input_to_counts(void);
+        enum KmerCounterInput {
+            undefinedInput = 0,
+            bedInput,
+            fastaInput
+        };
+
+        void parse_bed_input_to_counts(void);
+        void parse_fasta_input_to_counts(void);
         void initialize_command_line_options(int argc, char** argv);
         void initialize_kmer_map(void);
         void print_kmer_map(FILE* wo_stream);
+        void print_kmer_count(FILE* os, char header[]);
         void print_kmer_count(FILE* wo_stream, char chr[], char start[], char stop[]);
         void close_output_streams(void);
         // --
         static const std::string client_name;
         static const std::string client_version;
         static const std::string client_authors;
+        KmerCounterInput input_type;
+        bool map_keys;
+        bool write_results_to_stdout;
         std::string client_kmer_counter_opt_string(void);
         struct option* client_kmer_counter_long_options(void);
         std::string client_kmer_counter_name(void);
@@ -83,7 +94,7 @@ namespace kmer_counter
         const mode_t& results_dir_mode(void);
         void results_dir_mode(const mode_t& m);
         bool initialize_result_dir(const std::string& s, const mode_t m);
-        void initialize_kmer_count_stream(void);
+        void initialize_kmer_count_stream(const std::string& fn);
         void close_kmer_count_stream(void);
         void initialize_kmer_map_stream(void);
         void close_kmer_map_stream(void);
@@ -217,9 +228,9 @@ namespace kmer_counter
     
     bool KmerCounter::initialize_result_dir(const std::string& s, const mode_t m) { return (mkpath(s.c_str(), m) != 0) ? false : true; }
     
-    void KmerCounter::initialize_kmer_count_stream(void) {
+    void KmerCounter::initialize_kmer_count_stream(const std::string& fn) {
         FILE* out_fp = NULL;
-        std::string _kmer_count_fn(this->results_dir() + "/" + "count.bed");
+        std::string _kmer_count_fn(this->results_dir() + "/" + fn);
         this->results_kmer_count_fn(_kmer_count_fn);
         out_fp = this->results_kmer_count_fn().empty() ? NULL : std::fopen(this->results_kmer_count_fn().c_str(), "w");
         if (!out_fp) {
@@ -241,7 +252,7 @@ namespace kmer_counter
         }
         this->results_kmer_map_stream(&out_fp);
     }
-    void KmerCounter::close_kmer_map_stream(void) { if (_results_kmer_map_stream) { std::fclose(_results_kmer_map_stream); } }    
+    void KmerCounter::close_kmer_map_stream(void) { if (map_keys && _results_kmer_map_stream) { std::fclose(_results_kmer_map_stream); } }    
     
     const int& KmerCounter::k(void) { return _k; }
     void KmerCounter::k(const int& k) { _k = k; }

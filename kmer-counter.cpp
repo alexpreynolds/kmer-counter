@@ -11,8 +11,19 @@ main(int argc, char** argv)
 
     kc.initialize_command_line_options(argc, argv);
     kc.initialize_kmer_map();
-    kc.print_kmer_map(kc.results_kmer_map_stream());
-    kc.parse_input_to_counts();
+    if (kc.map_keys)
+        kc.print_kmer_map(kc.results_kmer_map_stream());
+    switch (kc.input_type) {
+        case kmer_counter::KmerCounter::bedInput:
+            kc.parse_bed_input_to_counts();
+            break;
+        case kmer_counter::KmerCounter::fastaInput:
+            kc.parse_fasta_input_to_counts();
+            break;
+        default:
+            std::fprintf(stderr, "Undefined input type!\n");
+            exit(EXIT_FAILURE);
+    }
     kc.close_output_streams();
     
     return EXIT_SUCCESS;
@@ -54,7 +65,7 @@ kmer_counter::KmerCounter::print_kmer_map(FILE* os)
 }
 
 void
-kmer_counter::KmerCounter::parse_input_to_counts(void)
+kmer_counter::KmerCounter::parse_bed_input_to_counts(void)
 {
     char* buf = NULL;
     size_t buf_len = 0;
@@ -102,16 +113,101 @@ kmer_counter::KmerCounter::parse_input_to_counts(void)
 }
 
 void
-kmer_counter::KmerCounter::print_kmer_count(FILE* os, char chr[], char start[], char stop[])
+kmer_counter::KmerCounter::parse_fasta_input_to_counts(void)
+{
+    char* buf = NULL;
+    size_t buf_len = 0;
+    ssize_t buf_read = 0;
+    char header_str[LINE_MAX];
+    char sequence_str[LINE_MAX];
+    int line_count = 0;
+    std::string n("N");
+
+    while ((buf_read = getline(&buf, &buf_len, this->in_stream())) != EOF) {
+        if (line_count++ % 2 == 0) {
+            std::sscanf(buf, ">%s\n", header_str);
+        }
+        else {
+            std::sscanf(buf, "%s\n", sequence_str);
+            std::string seq(sequence_str);
+            std::transform(seq.begin(), seq.end(), seq.begin(), ::toupper);
+            std::deque<char> window(seq.begin(), seq.begin() + this->k());
+            // walk over all windows across sequence
+            for (size_t i = this->k(); i <= seq.length(); ++i) {
+                std::string mer_f(window.begin(), window.end());
+                window.pop_front();
+                window.push_back(seq[i]);
+                std::size_t n_found = mer_f.find(n);
+                if (n_found != std::string::npos) {
+                    continue;
+                }
+                std::string mer_r(mer_f);
+                reverse_complement_string(mer_r);
+                if ((mer_count(mer_f) == 0) && (mer_count(mer_r) == 0)) {
+                    set_mer_count(mer_f, 1);
+                    // we don't want to add a palindrome twice
+                    if (mer_f.compare(mer_r) == 0) {
+                        continue;
+                    }
+                    set_mer_count(mer_r, 1);
+                }
+                else if ((mer_count(mer_f) == 1) || (mer_count(mer_r) == 1)) {
+                    increment_mer_count(mer_f);
+                    increment_mer_count(mer_r);
+                }
+            }
+            this->print_kmer_count(this->results_kmer_count_stream(), header_str);
+        }
+    }
+
+    // cleanup
+    free(buf);
+}
+
+void
+kmer_counter::KmerCounter::print_kmer_count(FILE* os, char header[])
 {
     char kv_pair[LINE_MAX];
     std::string kv_pairs;
+
+    if (!os)
+        os = stdout;
 
     // write the hits
     kv_pairs.clear();
     for (auto iter = this->mer_counts().begin(); iter != this->mer_counts().end(); ++iter) {
         if (iter->second != 0) {
-            std::sprintf(kv_pair, "%d:%d ", this->mer_key(iter->first), iter->second);
+            if (this->map_keys)
+                std::sprintf(kv_pair, "%d:%d ", this->mer_key(iter->first), iter->second);
+            else 
+                std::sprintf(kv_pair, "%s:%d ", iter->first.c_str(), iter->second);
+            set_mer_count(iter->first, 0);
+            kv_pairs.append(kv_pair);
+        }
+    }
+    if (kv_pairs.length() > 0) {
+        kv_pairs.pop_back();
+    }
+    std::fprintf(os, ">%s\t%s\n", header, kv_pairs.c_str());    
+}
+
+void
+kmer_counter::KmerCounter::print_kmer_count(FILE* os, char chr[], char start[], char stop[])
+{
+    char kv_pair[LINE_MAX];
+    std::string kv_pairs;
+
+    if (!os)
+        os = stdout;
+
+    // write the hits
+    kv_pairs.clear();
+    for (auto iter = this->mer_counts().begin(); iter != this->mer_counts().end(); ++iter) {
+        if (iter->second != 0) {
+            if (this->map_keys)
+                std::sprintf(kv_pair, "%d:%d ", this->mer_key(iter->first), iter->second);
+            else
+                std::sprintf(kv_pair, "%s:%d ", iter->first.c_str(), iter->second);
             set_mer_count(iter->first, 0);
             kv_pairs.append(kv_pair);
         }
@@ -125,7 +221,7 @@ kmer_counter::KmerCounter::print_kmer_count(FILE* os, char chr[], char start[], 
 std::string
 kmer_counter::KmerCounter::client_kmer_counter_opt_string(void)
 {
-    static std::string _s("k:o:r:hv?");
+    static std::string _s("k:o:r:bfhv?");
     return _s;
 }
 
@@ -134,7 +230,9 @@ kmer_counter::KmerCounter::client_kmer_counter_long_options(void)
 {
     static struct option _k = { "k",              required_argument,   NULL,    'k' };
     static struct option _o = { "offset",         required_argument,   NULL,    'o' };
-    static struct option _r = { "results-dir",    required_argument,   NULL,    'r' };    
+    static struct option _r = { "results-dir",    required_argument,   NULL,    'r' };
+    static struct option _b = { "bed",            no_argument,         NULL,    'b' };
+    static struct option _f = { "fasta",          no_argument,         NULL,    'f' };
     static struct option _h = { "help",           no_argument,         NULL,    'h' };
     static struct option _v = { "version",        no_argument,         NULL,    'v' };
     static struct option _0 = { NULL,             no_argument,         NULL,     0  };
@@ -142,6 +240,8 @@ kmer_counter::KmerCounter::client_kmer_counter_long_options(void)
     _s.push_back(_k);
     _s.push_back(_o);
     _s.push_back(_r);
+    _s.push_back(_b);
+    _s.push_back(_f);
     _s.push_back(_h);
     _s.push_back(_v);
     _s.push_back(_0);
@@ -160,6 +260,9 @@ kmer_counter::KmerCounter::initialize_command_line_options(int argc, char** argv
     int _k = -1;
     int _offset = -1;
 
+    this->input_type = KmerCounter::undefinedInput;
+    this->write_results_to_stdout = false;
+
     opterr = 0; /* disable error reporting by GNU getopt */
     
     while (client_opt != -1) {
@@ -174,6 +277,12 @@ kmer_counter::KmerCounter::initialize_command_line_options(int argc, char** argv
             break;
         case 'r':
             this->results_dir(optarg);
+            break;
+        case 'b':
+            this->input_type = KmerCounter::bedInput;
+            break;
+        case 'f':
+            this->input_type = KmerCounter::fastaInput;
             break;
         case 'h':
             this->print_usage(stdout);
@@ -213,22 +322,37 @@ kmer_counter::KmerCounter::initialize_command_line_options(int argc, char** argv
         std::exit(ENODATA);
     }
 
+    this->map_keys = true;
     if (this->offset() == -1) {
-        std::fprintf(stderr, "Error: Specify offset value\n");
+        this->map_keys = false;
+    }
+
+    if (this->input_type == KmerCounter::undefinedInput) {
+        std::fprintf(stderr, "Error: Specify input type value (BED or FASTA)\n");
         this->print_usage(stderr);
         std::exit(ENODATA);
     }
 
     if (this->results_dir().empty()) {
-        std::fprintf(stderr, "Error: Specify results dir value\n");
-        this->print_usage(stderr);
-        std::exit(ENODATA);        
+        this->write_results_to_stdout = true;    
     }
     else {
         this->results_dir_mode(0755);
         if (this->initialize_result_dir(this->results_dir(), this->results_dir_mode())) {
-            this->initialize_kmer_count_stream();
-            this->initialize_kmer_map_stream();
+            switch (this->input_type) {
+                case kmer_counter::KmerCounter::bedInput:
+                    this->initialize_kmer_count_stream("count.bed");
+                    break;
+                case kmer_counter::KmerCounter::fastaInput:
+                    if (!this->write_results_to_stdout)
+                        this->initialize_kmer_count_stream("count.txt");
+                    break;
+                default:
+                    std::fprintf(stderr, "Undefined input type!\n");
+                    exit(EXIT_FAILURE);
+            }
+            if (this->map_keys)
+                this->initialize_kmer_map_stream();
         }
         else {
             std::fprintf(stderr, "Error: Could not create specified path [%s] with specified mode [%o]\n", this->results_dir().c_str(), this->results_dir_mode());
