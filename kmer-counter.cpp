@@ -341,7 +341,8 @@ kmer_counter::KmerCounter::initialize_command_line_options(int argc, char** argv
         if (this->initialize_result_dir(this->results_dir(), this->results_dir_mode())) {
             switch (this->input_type) {
                 case kmer_counter::KmerCounter::bedInput:
-                    this->initialize_kmer_count_stream("count.bed");
+                    if (!this->write_results_to_stdout)
+                        this->initialize_kmer_count_stream("count.bed");
                     break;
                 case kmer_counter::KmerCounter::fastaInput:
                     if (!this->write_results_to_stdout)
