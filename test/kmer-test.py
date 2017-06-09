@@ -5,10 +5,11 @@ import subprocess
 
 k = 6
 fastaFile = 'kmer.fa'
-result = {}
 kmerCmd = '../kmer-counter --fasta --k=%d %s' % (k, fastaFile)
+
 try:
     output = subprocess.check_output(kmerCmd, shell=True)
+    result = {}
     for line in output.splitlines():
         (header, counts) = line.strip().split('\t')
         header = header[1:]
