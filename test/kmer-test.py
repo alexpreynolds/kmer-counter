@@ -15,6 +15,6 @@ try:
         header = header[1:]
         kmers = dict((k,int(v)) for (k,v) in [d.split(':') for d in counts.split(' ')])
         result[header] = kmers
-    sys.stdout.write("%s\n" % (result))
+    sys.stdout.write("%s\n" % (str(result)))
 except subprocess.CalledProcessError as error:
-    sys.stderr.write("%s\n" % (error))
+    sys.stderr.write("%s\n" % (str(error)))
