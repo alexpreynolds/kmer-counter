@@ -73,7 +73,7 @@ kmer_counter::KmerCounter::parse_bed_input_to_counts(void)
     char chr_str[LINE_MAX];
     char start_str[LINE_MAX];
     char stop_str[LINE_MAX];
-    char id_str[LINE_MAX];
+    char id_str[KMER_COUNTER_LINE_MAX];
     std::string n("N");
 
     while ((buf_read = getline(&buf, &buf_len, this->in_stream())) != EOF) {
@@ -119,7 +119,7 @@ kmer_counter::KmerCounter::parse_fasta_input_to_counts(void)
     size_t buf_len = 0;
     ssize_t buf_read = 0;
     char header_str[LINE_MAX];
-    char sequence_str[LINE_MAX];
+    char sequence_str[KMER_COUNTER_LINE_MAX];
     int line_count = 0;
     std::string n("N");
 
