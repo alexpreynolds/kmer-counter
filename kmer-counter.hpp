@@ -29,6 +29,8 @@ extern "C" {
 #include <sys/stat.h>
 #include "hash_map.hpp"
 
+#define KMER_COUNTER_LINE_MAX 524280
+
 namespace kmer_counter
 {
     class KmerCounter
