@@ -29,7 +29,7 @@ extern "C" {
 #include <sys/stat.h>
 #include "hash_map.hpp"
 
-#define KMER_COUNTER_LINE_MAX 524280
+#define KMER_COUNTER_LINE_MAX 268435456
 
 namespace kmer_counter
 {
@@ -65,13 +65,15 @@ namespace kmer_counter
         void print_kmer_count(FILE* os, char header[]);
         void print_kmer_count(FILE* wo_stream, char chr[], char start[], char stop[]);
         void close_output_streams(void);
-        // --
+
         static const std::string client_name;
         static const std::string client_version;
         static const std::string client_authors;
         KmerCounterInput input_type;
         bool map_keys;
         bool write_results_to_stdout;
+        bool write_reverse_complement;
+
         std::string client_kmer_counter_opt_string(void);
         struct option* client_kmer_counter_long_options(void);
         std::string client_kmer_counter_name(void);
@@ -115,6 +117,7 @@ namespace kmer_counter
         const emilib::HashMap<std::string, int>& mer_counts(void);
         void mer_counts(const emilib::HashMap<std::string, int>& mc);
         auto mer_count(const std::string& k);
+        void erase_mer_count(const std::string& k);
         void set_mer_count(const std::string& k, const int& v);
         void increment_mer_count(const std::string& k);        
         const emilib::HashMap<std::string, int>& mer_keys(void);
@@ -205,6 +208,7 @@ namespace kmer_counter
     auto KmerCounter::mer_count(const std::string& k) { return _mer_counts.count(k); }
     void KmerCounter::mer_counts(const emilib::HashMap<std::string, int>& mc) { _mer_counts = mc; }
     void KmerCounter::set_mer_count(const std::string& k, const int& v) { _mer_counts[k] = v; }
+    void KmerCounter::erase_mer_count(const std::string& k) { _mer_counts.erase(k); }
     void KmerCounter::increment_mer_count(const std::string& k) { _mer_counts[k]++; }
 
     const emilib::HashMap<std::string, int>& KmerCounter::mer_keys(void) { return _mer_keys; }

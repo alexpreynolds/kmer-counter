@@ -73,8 +73,14 @@ kmer_counter::KmerCounter::parse_bed_input_to_counts(void)
     char chr_str[LINE_MAX];
     char start_str[LINE_MAX];
     char stop_str[LINE_MAX];
-    char id_str[KMER_COUNTER_LINE_MAX];
+    char* id_str = NULL;
     std::string n("N");
+
+    id_str = (char*) malloc(KMER_COUNTER_LINE_MAX);
+    if (!id_str) {
+        std::fprintf(stderr, "Error: Could not allocate memory for ID buffer\n");
+        std::exit(ENOMEM);
+    }
 
     while ((buf_read = getline(&buf, &buf_len, this->in_stream())) != EOF) {
         std::sscanf(buf, "%s\t%s\t%s\t%s\n", chr_str, start_str, stop_str, id_str);
@@ -110,6 +116,7 @@ kmer_counter::KmerCounter::parse_bed_input_to_counts(void)
 
     // cleanup
     free(buf);
+    free(id_str);
 }
 
 void
@@ -119,9 +126,15 @@ kmer_counter::KmerCounter::parse_fasta_input_to_counts(void)
     size_t buf_len = 0;
     ssize_t buf_read = 0;
     char header_str[LINE_MAX];
-    char sequence_str[KMER_COUNTER_LINE_MAX];
+    char* sequence_str = NULL;
     int line_count = 0;
     std::string n("N");
+
+    sequence_str = (char*) malloc(KMER_COUNTER_LINE_MAX);
+    if (!sequence_str) {
+        std::fprintf(stderr, "Error: Could not allocate memory for sequence buffer\n");
+        std::exit(ENOMEM);
+    }
 
     while ((buf_read = getline(&buf, &buf_len, this->in_stream())) != EOF) {
         if (line_count++ % 2 == 0) {
@@ -162,6 +175,7 @@ kmer_counter::KmerCounter::parse_fasta_input_to_counts(void)
 
     // cleanup
     free(buf);
+    free(sequence_str);
 }
 
 void
@@ -173,15 +187,38 @@ kmer_counter::KmerCounter::print_kmer_count(FILE* os, char header[])
     if (!os)
         os = stdout;
 
+    // filter, if we do not want to print reverse complement hits
+    std::vector<std::string> mer_keys;
+    std::vector<std::string> mer_keys_to_remove;
+    for (auto iter = this->mer_counts().begin(); iter != this->mer_counts().end(); ++iter) {
+        std::string test_key = iter->first;
+        std::string rc_mer_key(test_key);
+        reverse_complement_string(rc_mer_key);
+        if ((!this->write_reverse_complement) && (test_key.compare(rc_mer_key) != 0)) {
+            auto found = std::find(mer_keys.begin(), mer_keys.end(), rc_mer_key);
+            if (found == mer_keys.end()) {
+                mer_keys_to_remove.push_back(rc_mer_key);
+            }
+        }
+        mer_keys.push_back(test_key);
+    }
+    for (auto iter = mer_keys_to_remove.begin(); iter != mer_keys_to_remove.end(); ++iter) {
+        std::string erase_key = *iter;
+        this->erase_mer_count(erase_key);
+    }
+
     // write the hits
     kv_pairs.clear();
-    for (auto iter = this->mer_counts().begin(); iter != this->mer_counts().end(); ++iter) {
-        if (iter->second != 0) {
+    for (auto iter = mer_keys.begin(); iter != mer_keys.end(); ++iter) {
+        std::string mer_key = *iter;
+        auto mer_key_lookup = this->mer_counts().find(mer_key);
+        int mer_key_count = (mer_key_lookup == this->mer_counts().end()) ? 0 : mer_key_lookup->second;
+        if (mer_key_count != 0) {
             if (this->map_keys)
-                std::sprintf(kv_pair, "%d:%d ", this->mer_key(iter->first), iter->second);
+                std::sprintf(kv_pair, "%d:%d ", this->mer_key(mer_key), mer_key_count);
             else 
-                std::sprintf(kv_pair, "%s:%d ", iter->first.c_str(), iter->second);
-            set_mer_count(iter->first, 0);
+                std::sprintf(kv_pair, "%s:%d ", mer_key.c_str(), mer_key_count);
+            set_mer_count(mer_key, 0);
             kv_pairs.append(kv_pair);
         }
     }
@@ -200,15 +237,39 @@ kmer_counter::KmerCounter::print_kmer_count(FILE* os, char chr[], char start[], 
     if (!os)
         os = stdout;
 
+    // filter, if we do not want to print reverse complement hits
+    std::vector<std::string> mer_keys;
+    std::vector<std::string> mer_keys_to_remove;
+    for (auto iter = this->mer_counts().begin(); iter != this->mer_counts().end(); ++iter) {
+        std::string test_key = iter->first;
+        std::string rc_mer_key(test_key);
+        reverse_complement_string(rc_mer_key);
+        if ((!this->write_reverse_complement) && (test_key.compare(rc_mer_key) != 0)) {
+            auto found = std::find(mer_keys.begin(), mer_keys.end(), rc_mer_key);
+            if (found == mer_keys.end()) {
+                mer_keys_to_remove.push_back(rc_mer_key);
+            }
+        }
+        mer_keys.push_back(test_key);
+    }
+    for (auto iter = mer_keys_to_remove.begin(); iter != mer_keys_to_remove.end(); ++iter) {
+        std::string erase_key = *iter;
+        this->erase_mer_count(erase_key);
+        std::fprintf(stderr, "erased [%s]\n", erase_key.c_str());
+    }
+
     // write the hits
     kv_pairs.clear();
-    for (auto iter = this->mer_counts().begin(); iter != this->mer_counts().end(); ++iter) {
-        if (iter->second != 0) {
+    for (auto iter = mer_keys.begin(); iter != mer_keys.end(); ++iter) {
+        std::string mer_key = *iter;
+        auto mer_key_lookup = this->mer_counts().find(mer_key);
+        int mer_key_count = (mer_key_lookup == this->mer_counts().end()) ? 0 : mer_key_lookup->second;
+        if (mer_key_count != 0) {
             if (this->map_keys)
-                std::sprintf(kv_pair, "%d:%d ", this->mer_key(iter->first), iter->second);
+                std::sprintf(kv_pair, "%d:%d ", this->mer_key(mer_key), mer_key_count);
             else
-                std::sprintf(kv_pair, "%s:%d ", iter->first.c_str(), iter->second);
-            set_mer_count(iter->first, 0);
+                std::sprintf(kv_pair, "%s:%d ", mer_key.c_str(), mer_key_count);
+            set_mer_count(mer_key, 0);
             kv_pairs.append(kv_pair);
         }
     }
@@ -221,7 +282,7 @@ kmer_counter::KmerCounter::print_kmer_count(FILE* os, char chr[], char start[], 
 std::string
 kmer_counter::KmerCounter::client_kmer_counter_opt_string(void)
 {
-    static std::string _s("k:o:r:bfhv?");
+    static std::string _s("k:o:r:bfchv?");
     return _s;
 }
 
@@ -233,6 +294,7 @@ kmer_counter::KmerCounter::client_kmer_counter_long_options(void)
     static struct option _r = { "results-dir",    required_argument,   NULL,    'r' };
     static struct option _b = { "bed",            no_argument,         NULL,    'b' };
     static struct option _f = { "fasta",          no_argument,         NULL,    'f' };
+    static struct option _c = { "no-rc",          no_argument,         NULL,    'c' };
     static struct option _h = { "help",           no_argument,         NULL,    'h' };
     static struct option _v = { "version",        no_argument,         NULL,    'v' };
     static struct option _0 = { NULL,             no_argument,         NULL,     0  };
@@ -242,6 +304,7 @@ kmer_counter::KmerCounter::client_kmer_counter_long_options(void)
     _s.push_back(_r);
     _s.push_back(_b);
     _s.push_back(_f);
+    _s.push_back(_c);
     _s.push_back(_h);
     _s.push_back(_v);
     _s.push_back(_0);
@@ -262,6 +325,7 @@ kmer_counter::KmerCounter::initialize_command_line_options(int argc, char** argv
 
     this->input_type = KmerCounter::undefinedInput;
     this->write_results_to_stdout = false;
+    this->write_reverse_complement = true;
 
     opterr = 0; /* disable error reporting by GNU getopt */
     
@@ -283,6 +347,9 @@ kmer_counter::KmerCounter::initialize_command_line_options(int argc, char** argv
             break;
         case 'f':
             this->input_type = KmerCounter::fastaInput;
+            break;
+        case 'c':
+            this->write_reverse_complement = false;
             break;
         case 'h':
             this->print_usage(stdout);
@@ -407,9 +474,10 @@ std::string
 kmer_counter::KmerCounter::client_kmer_counter_io_options(void)
 {
     static std::string _s("  General Options:\n\n"              \
-                          "  --k=n            K-value for kmer length (integer)\n" \
-                          "  --offset=n       Offset (integer)\n" \
-                          "  --results-dir=s  Results directory (string)\n");
+                          "  --no-rc           Disable writing of non-palindrome reverse complement counts\n" \
+                          "  --k=n             K-value for kmer length (integer)\n" \
+                          "  --offset=n        Offset (integer)\n" \
+                          "  --results-dir=s   Results directory (string)\n");
     return _s;
 }
 
