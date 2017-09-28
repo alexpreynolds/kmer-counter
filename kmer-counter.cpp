@@ -156,6 +156,10 @@ kmer_counter::KmerCounter::parse_fasta_input_to_counts(void)
             std::sscanf(buf, "%s\n", sequence_intermediate_buf);
             std::memcpy(sequence_str + sequence_read, sequence_intermediate_buf, buf_read);
             sequence_read += (buf_read - 1);
+            if (sequence_read >= KMER_COUNTER_LINE_MAX) {
+                std::fprintf(stderr, "Error: Input FASTA record is longer than can be stored in the sequence buffer\n");
+                std::exit(EOVERFLOW);
+            }
         }
         line_count += 1;
     }
