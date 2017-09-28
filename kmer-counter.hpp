@@ -59,6 +59,7 @@ namespace kmer_counter
 
         void parse_bed_input_to_counts(void);
         void parse_fasta_input_to_counts(void);
+        void process_fasta_record(char* header, char* sequence);
         void initialize_command_line_options(int argc, char** argv);
         void initialize_kmer_map(void);
         void print_kmer_map(FILE* wo_stream);

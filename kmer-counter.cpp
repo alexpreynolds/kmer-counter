@@ -125,10 +125,11 @@ kmer_counter::KmerCounter::parse_fasta_input_to_counts(void)
     char* buf = NULL;
     size_t buf_len = 0;
     ssize_t buf_read = 0;
-    char header_str[LINE_MAX];
+    char header_str[LINE_MAX] = {0};
     char* sequence_str = NULL;
-    int line_count = 0;
-    std::string n("N");
+    ssize_t sequence_read = 0;
+    char* sequence_intermediate_buf = NULL;
+    ssize_t line_count = 0;
 
     sequence_str = (char*) malloc(KMER_COUNTER_LINE_MAX);
     if (!sequence_str) {
@@ -136,46 +137,75 @@ kmer_counter::KmerCounter::parse_fasta_input_to_counts(void)
         std::exit(ENOMEM);
     }
 
+    sequence_intermediate_buf = (char*) malloc(KMER_COUNTER_LINE_MAX);
+    if (!sequence_intermediate_buf) {
+        std::fprintf(stderr, "Error: Could not allocate memory for sequence intermediate buffer\n");
+        std::exit(ENOMEM);
+    }
+
     while ((buf_read = getline(&buf, &buf_len, this->in_stream())) != EOF) {
-        if (line_count++ % 2 == 0) {
+        if (buf[0] == '>') {
+            if ((strlen(header_str) > 0) && (strlen(sequence_str) > 0)) {
+                this->process_fasta_record(header_str, sequence_str);
+                sequence_read = 0;
+            }
+            // read in next header
             std::sscanf(buf, ">%s\n", header_str);
         }
         else {
-            std::sscanf(buf, "%s\n", sequence_str);
-            std::string seq(sequence_str);
-            std::transform(seq.begin(), seq.end(), seq.begin(), ::toupper);
-            std::deque<char> window(seq.begin(), seq.begin() + this->k());
-            // walk over all windows across sequence
-            for (size_t i = this->k(); i <= seq.length(); ++i) {
-                std::string mer_f(window.begin(), window.end());
-                window.pop_front();
-                window.push_back(seq[i]);
-                std::size_t n_found = mer_f.find(n);
-                if (n_found != std::string::npos) {
-                    continue;
-                }
-                std::string mer_r(mer_f);
-                reverse_complement_string(mer_r);
-                if ((mer_count(mer_f) == 0) && (mer_count(mer_r) == 0)) {
-                    set_mer_count(mer_f, 1);
-                    // we don't want to add a palindrome twice
-                    if (mer_f.compare(mer_r) == 0) {
-                        continue;
-                    }
-                    set_mer_count(mer_r, 1);
-                }
-                else if ((mer_count(mer_f) == 1) || (mer_count(mer_r) == 1)) {
-                    increment_mer_count(mer_f);
-                    increment_mer_count(mer_r);
-                }
-            }
-            this->print_kmer_count(this->results_kmer_count_stream(), header_str);
+            std::sscanf(buf, "%s\n", sequence_intermediate_buf);
+            std::memcpy(sequence_str + sequence_read, sequence_intermediate_buf, buf_read);
+            sequence_read += (buf_read - 1);
         }
+        line_count += 1;
+    }
+
+    // process final record
+    if ((strlen(header_str) > 0) && (strlen(sequence_str) > 0)) {
+        this->process_fasta_record(header_str, sequence_str);
+        sequence_read = 0;
     }
 
     // cleanup
     free(buf);
     free(sequence_str);
+    free(sequence_intermediate_buf);
+}
+
+void
+kmer_counter::KmerCounter::process_fasta_record(char* header, char* sequence)
+{
+    std::string seq(sequence);
+    std::string n("N");
+
+    std::transform(seq.begin(), seq.end(), seq.begin(), ::toupper);
+    std::deque<char> window(seq.begin(), seq.begin() + this->k());
+    // walk over all windows across sequence
+    for (size_t i = this->k(); i <= seq.length(); ++i) {
+        std::string mer_f(window.begin(), window.end());
+        window.pop_front();
+        window.push_back(seq[i]);
+        std::size_t n_found = mer_f.find(n);
+        if (n_found != std::string::npos) {
+            continue;
+        }
+        std::string mer_r(mer_f);
+        reverse_complement_string(mer_r);
+        if ((mer_count(mer_f) == 0) && (mer_count(mer_r) == 0)) {
+            set_mer_count(mer_f, 1);
+            // we don't want to add a palindrome twice
+            if (mer_f.compare(mer_r) == 0) {
+                continue;
+            }
+            set_mer_count(mer_r, 1);
+        }
+        else if ((mer_count(mer_f) == 1) || (mer_count(mer_r) == 1)) {
+            increment_mer_count(mer_f);
+            increment_mer_count(mer_r);
+        }
+    }
+
+    this->print_kmer_count(this->results_kmer_count_stream(), header);
 }
 
 void
@@ -225,6 +255,7 @@ kmer_counter::KmerCounter::print_kmer_count(FILE* os, char header[])
     if (kv_pairs.length() > 0) {
         kv_pairs.pop_back();
     }
+
     std::fprintf(os, ">%s\t%s\n", header, kv_pairs.c_str());    
 }
 
@@ -276,6 +307,7 @@ kmer_counter::KmerCounter::print_kmer_count(FILE* os, char chr[], char start[], 
     if (kv_pairs.length() > 0) {
         kv_pairs.pop_back();
     }
+
     std::fprintf(os, "%s\t%s\t%s\t%s\n", chr, start, stop, kv_pairs.c_str());    
 }
 
