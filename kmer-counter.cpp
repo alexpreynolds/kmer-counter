@@ -150,7 +150,7 @@ kmer_counter::KmerCounter::parse_fasta_input_to_counts(void)
                 sequence_read = 0;
             }
             // read in next header
-            std::sscanf(buf, ">%s\n", header_str);
+            std::sscanf(buf, ">%[^\n\t]\n", header_str);
         }
         else {
             std::sscanf(buf, "%s\n", sequence_intermediate_buf);
