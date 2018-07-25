@@ -10,11 +10,12 @@ main(int argc, char** argv)
     kmer_counter::KmerCounter kc;
 
     kc.initialize_command_line_options(argc, argv);
-    kc.initialize_kmer_map();
+
     if (kc.map_keys)
         kc.print_kmer_map(kc.results_kmer_map_stream());
     switch (kc.input_type) {
         case kmer_counter::KmerCounter::bedInput:
+            kc.initialize_kmer_map();
             kc.parse_bed_input_to_counts();
             break;
         case kmer_counter::KmerCounter::fastaInput:
