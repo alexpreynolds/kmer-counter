@@ -11,8 +11,6 @@ main(int argc, char** argv)
 
     kc.initialize_command_line_options(argc, argv);
 
-    if (kc.map_keys)
-        kc.print_kmer_map(kc.results_kmer_map_stream());
     switch (kc.input_type) {
         case kmer_counter::KmerCounter::bedInput:
             kc.initialize_kmer_map();
@@ -25,6 +23,10 @@ main(int argc, char** argv)
             std::fprintf(stderr, "Undefined input type!\n");
             exit(EXIT_FAILURE);
     }
+    
+    if (kc.map_keys)
+        kc.print_kmer_map(kc.results_kmer_map_stream());
+        
     kc.close_output_streams();
     
     return EXIT_SUCCESS;
@@ -188,6 +190,9 @@ kmer_counter::KmerCounter::process_fasta_record(char* header, char* sequence)
     // walk over all windows across sequence
     for (size_t i = this->k(); i <= seq.length(); ++i) {
         std::string mer_f(window.begin(), window.end());
+        #ifdef DEBUG
+        std::fprintf(stderr, "[%s]\n", mer_f.c_str());
+        #endif
         window.pop_front();
         window.push_back(seq[i]);
         std::size_t n_found = mer_f.find(n);
@@ -196,18 +201,45 @@ kmer_counter::KmerCounter::process_fasta_record(char* header, char* sequence)
         }
         std::string mer_r(mer_f);
         reverse_complement_string(mer_r);
+        #ifdef DEBUG
+        std::fprintf(stderr, "PRE  [%s : %d]\t[%s : %d]\n", mer_f.c_str(), (mer_count(mer_f) == 0 ? 0 : this->mer_counts().find(mer_f)->second), mer_r.c_str(), (mer_count(mer_r) == 0 ? 0 : this->mer_counts().find(mer_r)->second));
+        #endif
         if ((mer_count(mer_f) == 0) && (mer_count(mer_r) == 0)) {
+            #ifdef DEBUG
+            std::fprintf(stderr, "INITIALIZING [%s]\n", mer_f.c_str());
+            #endif
             set_mer_count(mer_f, 1);
             // we don't want to add a palindrome twice
             if (mer_f.compare(mer_r) == 0) {
+                #ifdef DEBUG
+                std::fprintf(stderr, "POST [%s : %d]\t[%s : %d]\n-----------------\n", mer_f.c_str(), (mer_count(mer_f) == 0 ? 0 : this->mer_counts().find(mer_f)->second), mer_r.c_str(), (mer_count(mer_r) == 0 ? 0 : this->mer_counts().find(mer_r)->second));
+                #endif
                 continue;
             }
+            #ifdef DEBUG
+            std::fprintf(stderr, "INITIALIZING [%s]\n", mer_r.c_str());
+            #endif
             set_mer_count(mer_r, 1);
         }
         else if ((mer_count(mer_f) == 1) || (mer_count(mer_r) == 1)) {
+            #ifdef DEBUG
+            std::fprintf(stderr, "INCREMENTING [%s]\n", mer_f.c_str());
+            #endif
             increment_mer_count(mer_f);
+            if (mer_f.compare(mer_r) == 0) {
+                #ifdef DEBUG
+                std::fprintf(stderr, "POST [%s : %d]\t[%s : %d]\n-----------------\n", mer_f.c_str(), (mer_count(mer_f) == 0 ? 0 : this->mer_counts().find(mer_f)->second), mer_r.c_str(), (mer_count(mer_r) == 0 ? 0 : this->mer_counts().find(mer_r)->second));
+                #endif
+                continue;
+            }
+            #ifdef DEBUG
+            std::fprintf(stderr, "INCREMENTING [%s]\n", mer_r.c_str());
+            #endif
             increment_mer_count(mer_r);
         }
+        #ifdef DEBUG
+        std::fprintf(stderr, "POST [%s : %d]\t[%s : %d]\n-----------------\n", mer_f.c_str(), (mer_count(mer_f) == 0 ? 0 : this->mer_counts().find(mer_f)->second), mer_r.c_str(), (mer_count(mer_r) == 0 ? 0 : this->mer_counts().find(mer_r)->second));
+        #endif
     }
 
     this->print_kmer_count(this->results_kmer_count_stream(), header);
