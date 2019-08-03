@@ -18,6 +18,9 @@ endif
 
 all: kmer-counter
 
+debug: CXXFLAGS += -DDEBUG -g
+debug: kmer-counter
+
 kmer-counter:
 	$(CXX) -g $(BLDFLAGS) $(CXXFLAGS) -c kmer-counter.cpp -o kmer-counter.o
 	$(CXX) -g $(BLDFLAGS) $(CXXFLAGS) -I$(INCLUDES) kmer-counter.o -o kmer-counter
