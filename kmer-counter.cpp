@@ -104,7 +104,7 @@ kmer_counter::KmerCounter::parse_bed_input_to_counts(void)
             if ((mer_count(mer_f) == 0) && (mer_count(mer_r) == 0)) {
                 set_mer_count(mer_f, 1);
                 // we don't want to add a palindrome twice
-                if (mer_f.compare(mer_r) == 0) {
+                if ((mer_f.compare(mer_r) == 0) && (!this->double_count_palindromes)) {
                     continue;
                 }
                 set_mer_count(mer_r, 1);
@@ -210,25 +210,30 @@ kmer_counter::KmerCounter::process_fasta_record(char* header, char* sequence)
             #endif
             set_mer_count(mer_f, 1);
             // we don't want to add a palindrome twice
-            if (mer_f.compare(mer_r) == 0) {
+            if ((mer_f.compare(mer_r) == 0) && (!this->double_count_palindromes)) {
                 #ifdef DEBUG
-                std::fprintf(stderr, "POST [%s : %d]\t[%s : %d]\n-----------------\n", mer_f.c_str(), (mer_count(mer_f) == 0 ? 0 : this->mer_counts().find(mer_f)->second), mer_r.c_str(), (mer_count(mer_r) == 0 ? 0 : this->mer_counts().find(mer_r)->second));
+                std::fprintf(stderr, "POST %d [%s : %d]\t[%s : %d]\n-----------------\n", (this->double_count_palindromes ? 1 : 0), mer_f.c_str(), (mer_count(mer_f) == 0 ? 0 : this->mer_counts().find(mer_f)->second), mer_r.c_str(), (mer_count(mer_r) == 0 ? 0 : this->mer_counts().find(mer_r)->second));
                 #endif
                 continue;
             }
             #ifdef DEBUG
             std::fprintf(stderr, "INITIALIZING [%s]\n", mer_r.c_str());
             #endif
-            set_mer_count(mer_r, 1);
+            if (mer_count(mer_r) == 0) {
+                set_mer_count(mer_r, 1);  
+            }
+            else if (this->double_count_palindromes) {
+                increment_mer_count(mer_r);
+            }
         }
         else if ((mer_count(mer_f) == 1) || (mer_count(mer_r) == 1)) {
             #ifdef DEBUG
             std::fprintf(stderr, "INCREMENTING [%s]\n", mer_f.c_str());
             #endif
             increment_mer_count(mer_f);
-            if (mer_f.compare(mer_r) == 0) {
+            if ((mer_f.compare(mer_r) == 0) && (!this->double_count_palindromes)) {
                 #ifdef DEBUG
-                std::fprintf(stderr, "POST [%s : %d]\t[%s : %d]\n-----------------\n", mer_f.c_str(), (mer_count(mer_f) == 0 ? 0 : this->mer_counts().find(mer_f)->second), mer_r.c_str(), (mer_count(mer_r) == 0 ? 0 : this->mer_counts().find(mer_r)->second));
+                std::fprintf(stderr, "POST %d [%s : %d]\t[%s : %d]\n-----------------\n", (this->double_count_palindromes ? 1 : 0), mer_f.c_str(), (mer_count(mer_f) == 0 ? 0 : this->mer_counts().find(mer_f)->second), mer_r.c_str(), (mer_count(mer_r) == 0 ? 0 : this->mer_counts().find(mer_r)->second));
                 #endif
                 continue;
             }
@@ -351,22 +356,23 @@ kmer_counter::KmerCounter::print_kmer_count(FILE* os, char chr[], char start[], 
 std::string
 kmer_counter::KmerCounter::client_kmer_counter_opt_string(void)
 {
-    static std::string _s("k:o:r:bfchv?");
+    static std::string _s("k:o:r:bfcdhv?");
     return _s;
 }
 
 struct option*
 kmer_counter::KmerCounter::client_kmer_counter_long_options(void)
 {
-    static struct option _k = { "k",              required_argument,   NULL,    'k' };
-    static struct option _o = { "offset",         required_argument,   NULL,    'o' };
-    static struct option _r = { "results-dir",    required_argument,   NULL,    'r' };
-    static struct option _b = { "bed",            no_argument,         NULL,    'b' };
-    static struct option _f = { "fasta",          no_argument,         NULL,    'f' };
-    static struct option _c = { "no-rc",          no_argument,         NULL,    'c' };
-    static struct option _h = { "help",           no_argument,         NULL,    'h' };
-    static struct option _v = { "version",        no_argument,         NULL,    'v' };
-    static struct option _0 = { NULL,             no_argument,         NULL,     0  };
+    static struct option _k = { "k",                                 required_argument,   NULL,    'k' };
+    static struct option _o = { "offset",                            required_argument,   NULL,    'o' };
+    static struct option _r = { "results-dir",                       required_argument,   NULL,    'r' };
+    static struct option _b = { "bed",                               no_argument,         NULL,    'b' };
+    static struct option _f = { "fasta",                             no_argument,         NULL,    'f' };
+    static struct option _c = { "no-rc",                             no_argument,         NULL,    'c' };
+    static struct option _d = { "double-count-palindromes",          no_argument,         NULL,    'd' };
+    static struct option _h = { "help",                              no_argument,         NULL,    'h' };
+    static struct option _v = { "version",                           no_argument,         NULL,    'v' };
+    static struct option _0 = { NULL,                                no_argument,         NULL,     0  };
     static std::vector<struct option> _s;
     _s.push_back(_k);
     _s.push_back(_o);
@@ -374,6 +380,7 @@ kmer_counter::KmerCounter::client_kmer_counter_long_options(void)
     _s.push_back(_b);
     _s.push_back(_f);
     _s.push_back(_c);
+    _s.push_back(_d);
     _s.push_back(_h);
     _s.push_back(_v);
     _s.push_back(_0);
@@ -395,6 +402,7 @@ kmer_counter::KmerCounter::initialize_command_line_options(int argc, char** argv
     this->input_type = KmerCounter::undefinedInput;
     this->write_results_to_stdout = false;
     this->write_reverse_complement = true;
+    this->double_count_palindromes = false;
 
     opterr = 0; /* disable error reporting by GNU getopt */
     
@@ -419,6 +427,9 @@ kmer_counter::KmerCounter::initialize_command_line_options(int argc, char** argv
             break;
         case 'c':
             this->write_reverse_complement = false;
+            break;
+        case 'd':
+            this->double_count_palindromes = true;
             break;
         case 'h':
             this->print_usage(stdout);
@@ -533,9 +544,10 @@ kmer_counter::KmerCounter::client_kmer_counter_usage(void)
 std::string
 kmer_counter::KmerCounter::client_kmer_counter_description(void)
 {
-    static std::string _s("  Count kmers in BED file and report counts for\n" \
-                          "  each element, from specified offset. Write a\n" \
-                          "  key-count file and key table as output.\n");
+    static std::string _s("  Count kmers in BED or FASTA file and report counts\n" \
+                          "  for each element, from specified offset. Write a key-\n" \
+                          "  count file and key table as output for BED input, or\n" \
+                          "  write a header and mer-count table as output for FASTA.\n");
     return _s;
 }
 
@@ -543,10 +555,12 @@ std::string
 kmer_counter::KmerCounter::client_kmer_counter_io_options(void)
 {
     static std::string _s("  General Options:\n\n"              \
-                          "  --no-rc           Disable writing of non-palindrome reverse complement counts\n" \
-                          "  --k=n             K-value for kmer length (integer)\n" \
-                          "  --offset=n        Offset (integer)\n" \
-                          "  --results-dir=s   Results directory (string)\n");
+                          "  --k=n                       K-value for kmer length (integer, required)\n" \
+                          " [--bed | --fasta]            BED or FASTA input (required)\n" \
+                          "  --no-rc                     Disable writing of non-palindrome reverse complement counts (optional)\n" \
+                          "  --double-count-palindromes  Double-count palindromes (optional)\n" \
+                          "  --offset=n                  Offset for BED-based mer-map kv pairing (integer)\n" \
+                          "  --results-dir=s             Results directory (string)\n");
     return _s;
 }
 

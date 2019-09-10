@@ -74,6 +74,7 @@ namespace kmer_counter
         bool map_keys;
         bool write_results_to_stdout;
         bool write_reverse_complement;
+        bool double_count_palindromes;
 
         std::string client_kmer_counter_opt_string(void);
         struct option* client_kmer_counter_long_options(void);
