@@ -4,7 +4,7 @@ CC               = gcc
 CXX              = g++
 UNAME           := $(shell uname -s)
 BLDFLAGS         = -Wall -Wextra -std=c++14
-BLDDFLAGS        = -Wall -Wextra -std=c++14 -pendantic
+BLDDFLAGS        = -Wall -Wextra -std=c++14 -pedantic
 CXXFLAGS         = -D__STDC_CONSTANT_MACROS -D__STDINT_MACROS -D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE=1 -O3
 INCLUDES         = /usr/include
 

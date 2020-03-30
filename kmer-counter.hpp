@@ -16,6 +16,8 @@ extern "C" {
 #include <string>
 #include <vector>
 #include <deque>
+#include <stdexcept>
+#include <iterator>
 #include <algorithm>
 #include <iostream>
 #include <exception>
