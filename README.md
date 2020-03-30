@@ -3,7 +3,7 @@
 Compilation
 -----------
 
-This has been tested under CentOS 7.2 and Mac OS X 10.12.4, using current GCC and Clang toolkits.
+This has been tested under Ubuntu 18.04.4 and Mac OS X 10.15.3, using concurrent GCC/glibc and Clang toolkits.
 
 Usage
 -----
