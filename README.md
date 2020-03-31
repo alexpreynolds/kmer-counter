@@ -3,10 +3,14 @@
 Compilation
 -----------
 
-This has been tested under Ubuntu 18.04.4 and Mac OS X 10.15.3, using concurrent GCC/glibc and Clang toolkits.
+Run `make` to build the `kmer-counter` binary.
+
+This has been compiled under Ubuntu 18.04.4, Cygwin 3.1.4, and Mac OS X 10.15.3, using concurrent GCC/glibc and Clang toolkits.
 
 Usage
 -----
+
+Run `kmer-counter --help` for a list of options.
 
 There are a couple ways to use this.
 
