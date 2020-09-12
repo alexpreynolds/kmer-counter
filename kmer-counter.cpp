@@ -276,7 +276,27 @@ kmer_counter::KmerCounter::print_kmer_count(FILE* os, char header[])
     }
     for (auto iter = mer_keys_to_remove.begin(); iter != mer_keys_to_remove.end(); ++iter) {
         std::string erase_key = *iter;
+        #ifdef DEBUG
+        std::fprintf(stderr, "REMOVING [%s]\n", erase_key.c_str());
+        #endif
         this->erase_mer_count(erase_key);
+    }
+
+    // swap keys for canonical, unless specified
+    if (this->write_canonical) {
+        for (auto iter = this->mer_counts().begin(); iter != this->mer_counts().end(); ++iter) {
+            std::string test_key = iter->first;
+            std::string rc_mer_key(test_key);
+            reverse_complement_string(rc_mer_key);
+            if (std::lexicographical_compare(rc_mer_key.begin(), rc_mer_key.end(), test_key.begin(), test_key.end())) {
+                #ifdef DEBUG
+                std::fprintf(stderr, "SWAPPING [%s] FOR [%s]\n", test_key.c_str(), rc_mer_key.c_str());
+                #endif
+                int test_key_count = iter->second;
+                set_mer_count(rc_mer_key, test_key_count);
+                this->erase_mer_count(test_key);
+            }
+        }
     }
 
     // write the hits
@@ -356,7 +376,7 @@ kmer_counter::KmerCounter::print_kmer_count(FILE* os, char chr[], char start[], 
 std::string
 kmer_counter::KmerCounter::client_kmer_counter_opt_string(void)
 {
-    static std::string _s("k:o:r:bfcdhv?");
+    static std::string _s("k:o:r:bfcndhv?");
     return _s;
 }
 
@@ -368,7 +388,8 @@ kmer_counter::KmerCounter::client_kmer_counter_long_options(void)
     static struct option _r = { "results-dir",                       required_argument,   NULL,    'r' };
     static struct option _b = { "bed",                               no_argument,         NULL,    'b' };
     static struct option _f = { "fasta",                             no_argument,         NULL,    'f' };
-    static struct option _c = { "no-rc",                             no_argument,         NULL,    'c' };
+    static struct option _c = { "rc",                                no_argument,         NULL,    'c' };
+    static struct option _n = { "non-canonical",                     no_argument,         NULL,    'n' };
     static struct option _d = { "double-count-palindromes",          no_argument,         NULL,    'd' };
     static struct option _h = { "help",                              no_argument,         NULL,    'h' };
     static struct option _v = { "version",                           no_argument,         NULL,    'v' };
@@ -380,6 +401,7 @@ kmer_counter::KmerCounter::client_kmer_counter_long_options(void)
     _s.push_back(_b);
     _s.push_back(_f);
     _s.push_back(_c);
+    _s.push_back(_n);
     _s.push_back(_d);
     _s.push_back(_h);
     _s.push_back(_v);
@@ -399,10 +421,12 @@ kmer_counter::KmerCounter::initialize_command_line_options(int argc, char** argv
     int _k = -1;
     int _offset = -1;
 
+    // defaults
     this->input_type = KmerCounter::undefinedInput;
     this->write_results_to_stdout = false;
-    this->write_reverse_complement = true;
+    this->write_reverse_complement = false;
     this->double_count_palindromes = false;
+    this->write_canonical = true;
 
     opterr = 0; /* disable error reporting by GNU getopt */
     
@@ -426,7 +450,10 @@ kmer_counter::KmerCounter::initialize_command_line_options(int argc, char** argv
             this->input_type = KmerCounter::fastaInput;
             break;
         case 'c':
-            this->write_reverse_complement = false;
+            this->write_reverse_complement = true;
+            break;
+        case 'n':
+            this->write_canonical = false;
             break;
         case 'd':
             this->double_count_palindromes = true;
@@ -537,7 +564,7 @@ kmer_counter::KmerCounter::client_kmer_counter_usage(void)
     static std::string _s("\n"                                          \
                           "  Usage:\n"                                  \
                           "\n"                                          \
-                          "  $ kmer_counter [options] input\n");
+                          "  $ kmer-counter [options] input\n");
     return _s;
 }
 
@@ -557,7 +584,7 @@ kmer_counter::KmerCounter::client_kmer_counter_io_options(void)
     static std::string _s("  General Options:\n\n"              \
                           "  --k=n                       K-value for kmer length (integer, required)\n" \
                           " [--bed | --fasta]            BED or FASTA input (required)\n" \
-                          "  --no-rc                     Disable writing of non-palindrome reverse complement counts (optional)\n" \
+                          "  --rc                        Enable writing of non-palindrome reverse complement counts (optional)\n" \
                           "  --double-count-palindromes  Double-count palindromes (optional)\n" \
                           "  --offset=n                  Offset for BED-based mer-map kv pairing (integer)\n" \
                           "  --results-dir=s             Results directory (string)\n");

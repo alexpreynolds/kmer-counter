@@ -22,5 +22,6 @@ all: 2mer
 clean:
 	rm -rf 2mer
 	rm -rf *~
-	rm 4mer-observed.txt
-	rm 4mer-test.fa
+	rm -f 4mer-observed.txt
+	rm -f 4mer-test.fa
+	cd .. && $(MAKE) clean && cd $(PWD)

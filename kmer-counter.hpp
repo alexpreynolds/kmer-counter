@@ -77,6 +77,7 @@ namespace kmer_counter
         bool write_results_to_stdout;
         bool write_reverse_complement;
         bool double_count_palindromes;
+        bool write_canonical;
 
         std::string client_kmer_counter_opt_string(void);
         struct option* client_kmer_counter_long_options(void);
